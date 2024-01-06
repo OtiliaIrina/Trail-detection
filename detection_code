@@ -256,11 +256,11 @@ for file in glob.glob(os.path.join(path, '*.fits')):
 
 
     # Save 'data' and 'all_in' DataFrames using pickle with unique file names
-    data_filename = 'sat-info_b2000' + file.split('/')[-1].replace('.fits', '') + '.pkl'
+    data_filename = 'sat-info' + file.split('/')[-1].replace('.fits', '') + '.pkl'
     with open(data_filename, 'wb') as f:
         pickle.dump(data, f)
     
-    all_in_filename = 'all_in_b2000' + file.split('/')[-1].replace('.fits', '') + '.pkl'
+    all_in_filename = 'all_in' + file.split('/')[-1].replace('.fits', '') + '.pkl'
     with open(all_in_filename, 'wb') as f:
         pickle.dump(all_in, f)
     
