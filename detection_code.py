@@ -42,8 +42,6 @@ pathout = os.getcwd() + '/WinFrame/'
 
 # Iterate through each FITS file in the folder
 for file in glob.glob(os.path.join(path, '*.fits')):
-    # Your existing code here, but replace the single file path with 'file'
-    # For example:
     myFits = fits.open(file)
     cube = myFits[1].data
         
