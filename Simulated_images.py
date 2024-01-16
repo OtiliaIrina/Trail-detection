@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 # Path to your data cube FITS file
 input_cube = '/Users/otilia/Desktop/cube.fits'
 
+# Path to your PSF FITS file
 PSF_path = '/Users/otilia/Desktop/ds9.fits'
 PSF = fits.open(PSF_path)
 PSF_data = PSF[0].data.astype(np.float32)
@@ -36,17 +37,20 @@ end_y = start_y + PSF_data.shape[1]
 # Place PSF_data in the center of the zero matrix
 psf_400[start_x:end_x, start_y:end_y] = PSF_data
 
+#Define the streak function
 def streak(random_angle, brightness):
     kernel_length = 400
     kernel = np.zeros((kernel_length, kernel_length))
     kernel[int((kernel_length - 1) / 2), :] = 1  # Create a horizontal kernel
 
     # Rotate the kernel to a random angle
-    rotation_matrix = cv2.getRotationMatrix2D((kernel_length // 2, kernel_length // 2), random_angle, 1) #generates a rotation matrix using cv2.getRotationMatrix2D that rotates the kernel around its center ((kernel_length // 2, kernel_length // 2)) by the random_angle.
+    rotation_matrix = cv2.getRotationMatrix2D((kernel_length // 2, kernel_length // 2), random_angle, 1) 
+    #generates a rotation matrix using cv2.getRotationMatrix2D that rotates the kernel around its center ((kernel_length // 2, kernel_length // 2)) by the random_angle.
     
     #Applies the rotation transformation to the kernel using cv2.warpAffine. The resulting kernel is the streak rotated by the random_angle.
     kernel = cv2.warpAffine(kernel, rotation_matrix, (kernel_length, kernel_length))
-    
+
+    #Normalise the kernel
     kernel = kernel / np.max(kernel)
     kernel = kernel * brightness
 
@@ -61,22 +65,22 @@ with fits.open(input_cube, mode='update') as hdulist:
     size = cube_data.shape[0]
     random_angles = np.zeros(size)
     outfits = pyfits.open(input_cube)
-    
+
+    #Loop through the data cube
     for i in range(cube_data.shape[0]):
         output_cube = os.path.join(folder_path, f"{i}.fits")
         
         # Set random brightness 
         brightness = random.randint(1,65500)
+        
         # Generate angles in steps of 10 from 0 to 180  
-        random_angle = random.randint(0, 360)  # Generate a random angle between 0 and 180
-        # print(random_angle)
+        random_angle = random.randint(0, 180)  
         
         # Generate a single random value for impact parameter (rho)
-        # 100 is grazing and 0 is perfectly through middle
+        # 100 is grazing and 0 is perfectly through the center of the image
         rho = random.randint(0, 100)
         alpha= 90 - random_angle
-        # print('rho',rho)
-
+        
         # The sin()/cos() function in Python's NumPy library takes angles in radians, not degrees. 
         # To convert degrees to radians, you can use the numpy.deg2rad() function.
         angle_rad = np.deg2rad(alpha)
@@ -86,19 +90,17 @@ with fits.open(input_cube, mode='update') as hdulist:
          # Calculating the coordinates of the center of the cropped image
         cropped_center_y = int(200 - rho * sin_value )
         cropped_center_x = int(200 - rho *  cos_value)
-        
-        # print('cropped_center_x:',cropped_center_x)
-        # print('cropped_center_y:',cropped_center_y)
          
         #Calculating the start of the cropped image
         crop_x = cropped_center_y -100
         crop_y = cropped_center_x -100
-        
 
         streak_kernel = streak(random_angle, brightness)
-        streak_result = cv2.filter2D(psf_400, -1, streak_kernel)
         
+        #Apply convolution
+        streak_result = cv2.filter2D(psf_400, -1, streak_kernel)
 
+        #Crop image
         cropped_image = streak_result[crop_x:crop_x + 200, crop_y:crop_y + 200]
         
         # Define a circular mask for the cropped image
@@ -108,7 +110,8 @@ with fits.open(input_cube, mode='update') as hdulist:
         y, x = np.ogrid[:height, :width]
         mask = ((x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2)
         cropped_image[~mask] = 0.0
-   
+
+        #Add star in the center to ressemble real images
         modified_image = cube_data[i] + cropped_image
         modified_image = np.nan_to_num(modified_image, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         plt.imshow(modified_image, cmap='gray')
@@ -118,14 +121,10 @@ with fits.open(input_cube, mode='update') as hdulist:
         modified_cube[i] = modified_image
         outfits[1].data[i, :, :] = modified_image
         outfits[1].header= cube_header
-        # cube_header['ANGLE'] = (random_angle, 'degrees')
-        # cube_header['IMPACT'] = (rho, 'distance to center')
         
         header = cube_header.copy()  # Create a new header for each file
         header.append(('IMPACT', rho), end=True)  # Set 'Impact' value for this specific file
         header.append(('ANGLE', random_angle), end=True)  # Set 'Random_Angle' value for this specific file
-        # header['ANGLE'] = (random_angle, 'degrees')
-        # header['IMPACT'] = (rho, 'distance to center')
         outfits.writeto(output_cube, overwrite=True)
    
     # Now, save only the last modified cube
